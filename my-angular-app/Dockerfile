@@ -1,18 +1,24 @@
-FROM node:20
+# Stage 1: Build the Angular application
+
+FROM node:20-alpine AS build-stage
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --production
-
-RUN rm -rf /root/.npm
-
-RUN rm -rf node_modules
-RUN npm 
+RUN npm install
 
 COPY . .
 
-EXPOSE 4200
+RUN npm run build --configuration=production
 
-CMD ["npx", "ng", "serve", "--host", "0.0.0.0"]
+
+# Stage 2: Serve with Nginx (the final tiny image)
+
+FROM nginx:stable-alpine
+
+COPY --from=build-stage /app/dist/my-angular-app /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
