@@ -17,7 +17,7 @@ RUN npm run build --configuration=production
 
 FROM nginx:stable-alpine
 
-COPY --from=build-stage /app/dist/my-angular-app /usr/share/nginx/html
+COPY --from=build-stage /app/dist/my-angular-app/browser /usr/share/nginx/html
 
 EXPOSE 80
 
