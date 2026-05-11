@@ -4,7 +4,12 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+RUN npm install --production
+
+RUN rm -rf /root/.npm
+
+RUN rm -rf node_modules
+RUN npm 
 
 COPY . .
 
