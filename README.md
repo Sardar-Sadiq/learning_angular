@@ -52,3 +52,8 @@ Spring Boot container
 PostgreSQL container
 API communication
 Environment variables
+
+
+
+
+
