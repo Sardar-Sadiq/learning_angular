@@ -1,5 +1,4 @@
-# Stage 1: Build the Angular application
-
+# Stage 1 - Build Angular app
 FROM node:20-alpine AS build-stage
 
 WORKDIR /app
@@ -13,13 +12,15 @@ COPY . .
 RUN npm run build --configuration=production
 
 
-# Stage 2: Serve with Nginx (the final tiny image)
-
+# Stage 2 - Nginx
 FROM nginx:stable-alpine
 
-COPY --from=build-stage /app/dist/my-angular-app/browser /usr/share/nginx/html
+# Remove default nginx files
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy Angular build files
+COPY --from=build-stage /app/dist/my-angular-app/browser/ /usr/share/nginx/html/
 
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
-
