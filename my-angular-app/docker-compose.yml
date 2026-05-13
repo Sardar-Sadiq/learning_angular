@@ -1,8 +1,97 @@
+# ============================================================
+#  Docker Compose — Angular Frontend + PostgreSQL DB
+#  Usage:
+#    docker compose up --build          # first run / after code changes
+#    docker compose up -d               # background (detached)
+#    docker compose down                # stop (keeps DB volume)
+#    docker compose down -v             # stop AND delete DB data
+# ============================================================
+
 services:
+
+  # ── Angular Frontend (nginx) ────────────────────────────────
   angular-app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime # explicitly use the final runtime stage
+    container_name: angular_frontend
+    restart: unless-stopped
     ports:
-      - "4200:4200"
+      - "3000:80" # http://localhost:3000 → nginx:80 inside container
+    depends_on:
+      db:
+        condition: service_healthy # wait until Postgres is actually ready
+    networks:
+      - app_network
+    # No source-code volumes here — we serve the compiled dist, not live files.
+    # For live-reload dev work use: docker compose -f docker-compose.dev.yml up
+
+    # ── PostgreSQL Database ─────────────────────────────────────
+  db:
+    image: postgres:16-alpine # lightweight official Postgres image
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432" # expose to host for tools like DBeaver / pgAdmin
     volumes:
-      - .:/app
-      - /app/node_modules
+      - db_data:/var/lib/postgresql/data # named volume → data survives restarts
+      - ./db/init:/docker-entrypoint-initdb.d # optional: place .sql seed files here
+    networks:
+      - app_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-appuser} -d ${DB_NAME:-app_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  # ── pgAdmin (optional DB GUI) ───────────────────────────────
+  # Uncomment to get a browser-based Postgres admin panel at http://localhost:5050
+  #
+  # pgadmin:
+  #   image: dpage/pgadmin4:latest
+  #   container_name: pgadmin
+  #   restart: unless-stopped
+  #   environment:
+  #     PGADMIN_DEFAULT_EMAIL: admin@local.dev
+  #     PGADMIN_DEFAULT_PASSWORD: admin
+  #   ports:
+  #     - "5050:80"
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - app_network
+
+  # ── Future: Java/Spring Backend ─────────────────────────────
+  # When you add a backend, add a service like this:
+  #
+  #  backend:
+  #    build: ../spring-boot-app        # path to your Java project
+  #    container_name: spring_backend
+  #    restart: unless-stopped
+  #    environment:
+  #      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-app_db}
+  #      SPRING_DATASOURCE_USERNAME: ${DB_USER:-appuser}
+  #      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+  #      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+  #    ports:
+  #      - "8080:8080"
+  #    depends_on:
+  #      db:
+  #        condition: service_healthy
+  #    networks:
+  #      - app_network
+
+  # ── Named Volumes ────────────────────────────────────────────
+volumes:
+  db_data:
+    driver: local # data stored in Docker's managed area on the host
+
+# ── Private Bridge Network ───────────────────────────────────
+networks:
+  app_network:
+    driver: bridge # containers can reach each other by service name
